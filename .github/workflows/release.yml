@@ -1,0 +1,62 @@
+name: Build and publish VMs
+on:
+  push:
+    tags: ['**']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+            packages: qemu-system-x86
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            packages: qemu-system-arm qemu-efi-aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends genisoimage qemu-utils ${{ matrix.packages }}
+      - run: python3 scripts/build.py --arch ${{ matrix.arch }}
+      - run: python3 scripts/smoke.py dist/ubuntu-noble-minimal-${{ matrix.arch }}.qcow2
+      - run: cd dist && sha256sum -c *.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vm-${{ matrix.arch }}
+          path: dist/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vm-*
+          merge-multiple: true
+          path: dist
+      - name: Verify and publish tested disks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        working-directory: dist
+        run: |
+          sha256sum -c ubuntu-noble-minimal-{amd64,arm64}.qcow2.sha256
+          flags=()
+          if [[ "$TAG" == *-* ]]; then flags+=(--prerelease --latest=false); fi
+          gh release create --verify-tag --title "$TAG" \
+            --notes "Ubuntu 24.04 minimal QCOW2 base disks. Download the disk for your architecture and verify it with the matching .sha256 file." \
+            "${flags[@]}" -- "$TAG" *.qcow2 *.sha256
