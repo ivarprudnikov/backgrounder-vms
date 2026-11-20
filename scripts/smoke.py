@@ -38,7 +38,8 @@ power_state:
         cmd = ["qemu-system-x86_64"]
     cmd += ["-accel", accel, "-cpu", "max" if accel == "tcg" else "host",
             "-m", "1536", "-smp", "2", "-display", "none", "-monitor", "none",
-            "-serial", "stdio", "-no-reboot", "-nic", "user,model=virtio-net-pci,restrict=on",
+            "-serial", "stdio", "-no-reboot", "-netdev", "user,id=net0,restrict=on",
+            "-device", "virtio-net-pci,netdev=net0,romfile=",
             "-drive", f"file={overlay},if=virtio,format=qcow2",
             "-drive", f"file={iso},if=virtio,format=raw,readonly=on"]
     log = work / "serial.log"
