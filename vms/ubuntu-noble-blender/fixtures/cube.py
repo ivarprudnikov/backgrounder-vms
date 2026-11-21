@@ -1,4 +1,4 @@
-"""Run inside Blender: --python cube.py -- OUTPUT_DIRECTORY."""
+"""Test fixture: run inside Blender on the disposable test overlay."""
 import sys
 from pathlib import Path
 

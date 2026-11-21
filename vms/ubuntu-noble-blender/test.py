@@ -1,4 +1,5 @@
 import tarfile
+from pathlib import Path
 
 from guest import check_guest
 
@@ -7,9 +8,14 @@ def run(image, work, output_dir):
     transfer = work / "transfer.raw"
     with transfer.open("wb") as f:
         f.truncate(32 << 20)
-    script = """
+    fixture = (Path(__file__).parent / "fixtures" / "cube.py").read_text()
+    script = f"""
 cd /tmp
-blender --background --factory-startup --python-exit-code 1 --python /usr/local/share/backgrounder/cube.py -- /tmp
+test -z "$(find /usr/local/share -name cube.py -print -quit)"
+cat > cube.py <<'CUBE_FIXTURE'
+{fixture}
+CUBE_FIXTURE
+blender --background --factory-startup --python-exit-code 1 --python cube.py -- /tmp
 blender -b cube.blend --python-exit-code 1 --python-expr 'import bpy; assert len(bpy.data.objects["Cube"].data.vertices) == 8' -o //cube- -F PNG -f 1
 tar -cf /dev/vdc cube.blend cube-0001.png
 sync"""
