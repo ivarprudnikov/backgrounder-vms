@@ -35,13 +35,42 @@ def digest(path, algorithm):
     return h.hexdigest()
 
 
+def bake_blender(base, out):
+    from smoke import boot, overlay
+    with tempfile.TemporaryDirectory(dir=out.parent.resolve()) as tmp:
+        work = Path(tmp)
+        disk = overlay(base.resolve(), work, "8G")
+        sample = Path(__file__).with_name("cube.py").read_text()
+        script = """set -e
+trap 'shutdown -P +1' EXIT
+export DEBIAN_FRONTEND=noninteractive
+apt-get -o Acquire::Retries=3 update --error-on=any
+apt-get -o Acquire::Retries=3 install -y --no-install-recommends blender
+blender --version
+apt-get clean
+rm -f /etc/ssh/ssh_host_* /var/lib/systemd/random-seed
+cloud-init clean --logs --machine-id --seed
+fstrim /
+sync
+echo BGVM_BOOT_OK > /dev/console"""
+        userdata = {"write_files": [{"path": "/usr/local/share/backgrounder/cube.py", "content": sample}],
+                    "runcmd": [["bash", "-c", script]]}
+        boot(disk, work, userdata, network=True, timeout=3600)
+        packed = work / out.name
+        subprocess.run(["qemu-img", "convert", "-c", "-O", "qcow2", disk, packed], check=True)
+        os.replace(packed, out)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     native = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine(), platform.machine())
     parser.add_argument("--arch", choices=("amd64", "arm64"), default=native)
-    parser.add_argument("--profile", choices=PROFILES, default="ubuntu")
+    parser.add_argument("--profile", choices=(*PROFILES, "blender"), default="ubuntu")
     args = parser.parse_args()
-    prefix, source, algorithm, sums = PROFILES[args.profile]
+    blender = args.profile == "blender"
+    if blender and native != args.arch:
+        parser.error("build Blender on a native-architecture host")
+    prefix, source, algorithm, sums = PROFILES["ubuntu" if blender else args.profile]
     if args.arch not in sums:
         parser.error("unsupported host; specify --arch")
     name = f"{prefix}-{args.arch}.qcow2"
@@ -56,7 +85,11 @@ def main():
             if digest(download, algorithm) != expected:
                 raise SystemExit(f"{algorithm} mismatch for {url}")
             os.replace(download, out)
-    sha256 = expected if algorithm == "sha256" else digest(out, "sha256")
+    if blender:
+        name = f"ubuntu-noble-blender-{args.arch}.qcow2"
+        base, out = out, out.parent / name
+        bake_blender(base, out)
+    sha256 = expected if algorithm == "sha256" and not blender else digest(out, "sha256")
     (out.parent / (name + ".sha256")).write_text(f"{sha256}  {name}\n")
     print(f"Verified {out}: {sha256}")
 

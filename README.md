@@ -5,6 +5,7 @@ Download a tested **QCOW2** base disk from
 Choose **Ubuntu 24.04 minimal** for the original Backgrounder environment
 or **Debian 13 generic** for a Debian stable environment with Bash, Python 3,
 and apt. Both are unmodified upstream cloud images, not container layers.
+Choose **Ubuntu 24.04 Blender** for headless 3D modeling and CPU rendering.
 Use `amd64` for Intel/AMD hosts or `arm64` for Apple Silicon / 64-bit ARM.
 Download the matching `.sha256` file into the same directory and verify:
 
@@ -52,6 +53,28 @@ and shuts down. Its overlay and seed are temporary.
 digests (Ubuntu `SHA256SUMS`, Debian `SHA512SUMS`) and writes a `.sha256`
 sidecar for every output. No Backgrounder checkout is required. To refresh a
 profile, update its URL and both digest pins from that build's upstream manifest.
+
+## Blender: create and render an editable cube
+
+Build on the target architecture. Only the bake needs networking: it boots
+Ubuntu and installs the Ubuntu archive's current `blender` package into a
+standalone disk. Rendering requires neither a GPU nor network access.
+
+```sh
+python3 scripts/build.py --profile blender
+python3 scripts/smoke.py --profile blender dist/ubuntu-noble-blender-amd64.qcow2
+```
+
+The test boots a fresh guest, creates a scene, then opens it in a second
+Blender process, verifies the cube geometry and renders a PNG. Look in
+`dist/preview/` for `cube.blend` and `cube.png`.
+To do the same from a Backgrounder shell inside the Blender VM:
+
+```sh
+blender -b --factory-startup --python-exit-code 1 \
+  --python /usr/local/share/backgrounder/cube.py -- "$PWD"
+blender -b cube.blend -o "$PWD/cube-" -F PNG -f 1  # writes cube-0001.png
+```
 
 ## Publish
 
