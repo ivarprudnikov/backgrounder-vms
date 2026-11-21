@@ -7,6 +7,7 @@ from pathlib import Path
 import platform
 import subprocess
 import tempfile
+from vm_card import write_card
 
 
 UBUNTU_SUMS = {
@@ -90,7 +91,9 @@ def main():
         base, out = out, out.parent / name
         bake_blender(base, out)
     sha256 = expected if algorithm == "sha256" and not blender else digest(out, "sha256")
-    (out.parent / (name + ".sha256")).write_text(f"{sha256}  {name}\n")
+    checksum = out.parent / (name + ".sha256")
+    checksum.write_text(f"{sha256}  {name}\n")
+    write_card(checksum)
     print(f"Verified {out}: {sha256}")
 
 

@@ -18,6 +18,17 @@ the verified disk. Ubuntu remains the default.
 Keep the base disk pristine: each guest needs its own writable overlay and
 cloud-init seed (Backgrounder supplies both). There is no shared password.
 
+## VM cards for downloaders and agents
+
+Starting with `v0.3.0-test.1`, every released disk has a Markdown capability
+card in the **same release**. Replace `.qcow2` with `.md` to find it: for
+`ubuntu-noble-blender-arm64.qcow2`, fetch `ubuntu-noble-blender-arm64.md`.
+Local builds also write the card into `dist/`. YAML front matter identifies
+the profile, architecture, exact disk filename, and disk SHA-256. Match these
+to the selected disk, then pass the Markdown body to the agent as reference
+material: it lists tools, guest commands, expected outputs and limits. The
+card describes capabilities; it does not grant host permissions or network access.
+
 ## Why Debian as the second image?
 
 | Agent sandbox | What its users start with | What that suggests for Backgrounder |

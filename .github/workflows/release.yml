@@ -46,7 +46,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: vm-${{ matrix.profile }}-${{ matrix.arch }}
-          path: dist/${{ matrix.prefix }}-${{ matrix.arch }}.qcow2*
+          path: |
+            dist/${{ matrix.prefix }}-${{ matrix.arch }}.qcow2*
+            dist/${{ matrix.prefix }}-${{ matrix.arch }}.md
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
@@ -70,8 +72,9 @@ jobs:
         working-directory: dist
         run: |
           sha256sum -c {ubuntu-noble-minimal,debian-trixie-generic,ubuntu-noble-blender}-{amd64,arm64}.qcow2.sha256
+          for disk in *.qcow2; do test -s "${disk%.qcow2}.md"; done
           flags=()
           if [[ "$TAG" == *-* ]]; then flags+=(--prerelease --latest=false); fi
           gh release create --verify-tag --title "$TAG" \
             --notes "Ubuntu minimal, Debian generic and Ubuntu Blender QCOW2 disks. The cube scene and PNG were generated inside the amd64 Blender VM." \
-            "${flags[@]}" -- "$TAG" *.qcow2 *.sha256 cube.blend cube.png
+            "${flags[@]}" -- "$TAG" *.qcow2 *.sha256 *.md cube.blend cube.png
