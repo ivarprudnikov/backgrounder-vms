@@ -8,13 +8,14 @@ import subprocess
 import tempfile
 
 
-def smoke(image, work):
+def smoke(image, work, profile):
     seed = work / "seed"
     seed.mkdir()
     (seed / "meta-data").write_text("instance-id: smoke\nlocal-hostname: smoke\n")
-    (seed / "user-data").write_text("""#cloud-config
+    codename = {"ubuntu": "noble", "debian": "trixie"}[profile]
+    (seed / "user-data").write_text(f"""#cloud-config
 runcmd:
-  - [bash, -ec, 'source /etc/os-release; test "$VERSION_CODENAME" = noble; python3 -V; echo BGVM_BOOT_OK > /dev/console']
+  - [bash, -ec, 'source /etc/os-release; test "$ID:$VERSION_CODENAME" = "{profile}:{codename}"; python3 -V; echo BGVM_BOOT_OK > /dev/console']
 power_state:
   mode: poweroff
   timeout: 60
@@ -50,11 +51,13 @@ power_state:
             output = log.read_text(errors="replace")
             print(output[-4000:])
     if "BGVM_BOOT_OK" not in output.splitlines():
-        raise SystemExit("Guest did not confirm Ubuntu Noble, Bash and Python via cloud-init")
+        raise SystemExit(f"Guest did not confirm {profile} {codename}, Bash and Python via cloud-init")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image", type=Path)
+    parser.add_argument("--profile", choices=("ubuntu", "debian"), default="ubuntu")
+    args = parser.parse_args()
     with tempfile.TemporaryDirectory() as tmp:
-        smoke(parser.parse_args().image.resolve(strict=True), Path(tmp))
+        smoke(args.image.resolve(strict=True), Path(tmp), args.profile)
