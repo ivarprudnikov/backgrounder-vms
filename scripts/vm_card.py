@@ -13,7 +13,7 @@ def write_card(checksum):
     if not match:
         raise ValueError(f"Unexpected VM filename: {disk}")
     profile, arch = match.groups()
-    notes = (Path(__file__).resolve().parents[1] / "cards" / f"{profile}.md").read_text()
+    notes = (Path(__file__).resolve().parents[1] / "vms" / profile / "card.md").read_text()
     card = checksum.with_name(Path(disk).stem + ".md")
     card.write_text(f"""---
 vm_card_version: 1

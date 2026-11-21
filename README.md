@@ -49,13 +49,13 @@ From the repository root, with Python 3, curl, QEMU (`qemu-img` and the
 native system emulator), and either macOS `hdiutil` or Linux `genisoimage`:
 
 ```sh
-python3 scripts/build.py         # defaults to the host architecture
-python3 scripts/smoke.py dist/ubuntu-noble-minimal-amd64.qcow2
-python3 scripts/build.py --profile debian
-python3 scripts/smoke.py --profile debian dist/debian-trixie-generic-amd64.qcow2
+python3 scripts/build.py         # all VMs, host architecture
+python3 scripts/test.py          # boot each disk and run its own tests
+python3 scripts/build.py --vm debian-trixie-generic
+python3 scripts/test.py --vm debian-trixie-generic
 ```
 
-On ARM, substitute `arm64` in the disk filename. Linux ARM also needs
+Linux ARM also needs
 `qemu-efi-aarch64`. The smoke test boots an overlay, runs Bash and Python
 through cloud-init, verifies a guest success message on the serial console,
 and shuts down. Its overlay and seed are temporary.
@@ -63,7 +63,23 @@ and shuts down. Its overlay and seed are temporary.
 [The builder](scripts/build.py) verifies dated upstream disks against pinned
 digests (Ubuntu `SHA256SUMS`, Debian `SHA512SUMS`) and writes a `.sha256`
 sidecar for every output. No Backgrounder checkout is required. To refresh a
-profile, update its URL and both digest pins from that build's upstream manifest.
+profile, update its URL and both digest pins in its parameters file.
+
+## Repository layout
+
+Each directory in [vms/](vms/) is one VM. Its name is the release filename
+prefix; for example [ubuntu-noble-blender/](vms/ubuntu-noble-blender/) produces
+`ubuntu-noble-blender-<arch>.qcow2`. To add a VM, create a directory containing:
+
+| File | Responsibility |
+| --- | --- |
+| `card.md` | Describe tools, guest commands, expected outputs and limits. The builder adds the disk-specific metadata. |
+| `parameters.py` | For an upstream disk, declare `URL` (with `{arch}`), `ALGORITHM`, and `DIGESTS` keyed by architecture. For a derived disk, declare `BASE` (another directory name) and `bake(base, output, work)` to write the standalone QCOW2. |
+| `test.py` | Define `run(image, work, output_dir)` to validate the finished disk. Use `work` for temporary files and `output_dir` for publishable samples with unique filenames. Raise on failure. |
+
+Keep VM-specific assets beside these files. The build resolves dependencies,
+and the local test runner and tag workflow discover the same catalog; no VM
+registry edit is needed. Release builds currently target both amd64 and arm64.
 
 ## Blender: create and render an editable cube
 
@@ -72,8 +88,8 @@ Ubuntu and installs the Ubuntu archive's current `blender` package into a
 standalone disk. Rendering requires neither a GPU nor network access.
 
 ```sh
-python3 scripts/build.py --profile blender
-python3 scripts/smoke.py --profile blender dist/ubuntu-noble-blender-amd64.qcow2
+python3 scripts/build.py --vm ubuntu-noble-blender
+python3 scripts/test.py --vm ubuntu-noble-blender
 ```
 
 The test boots a fresh guest, creates a scene, then opens it in a second

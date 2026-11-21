@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """Boot a native-architecture disk with a disposable NoCloud seed and overlay."""
-import argparse
 import os
-from pathlib import Path
 import platform
 import subprocess
-import tempfile
-import tarfile
 import json
 
 
@@ -57,38 +53,6 @@ def overlay(image, work, size):
     return disk
 
 
-def smoke(image, work, profile, output_dir):
-    os_release = {"ubuntu": "ubuntu:noble", "debian": "debian:trixie", "blender": "ubuntu:noble"}[profile]
-    script = f'source /etc/os-release; test "$ID:$VERSION_CODENAME" = "{os_release}"; python3 -V'
-    extra = []
-    if profile == "blender":
-        transfer = work / "transfer.raw"
-        with transfer.open("wb") as f:
-            f.truncate(32 << 20)
-        extra = ["-drive", f"file={transfer},if=virtio,format=raw"]
-        script += """
-cd /tmp
-blender --background --factory-startup --python-exit-code 1 --python /usr/local/share/backgrounder/cube.py -- /tmp
-blender -b cube.blend --python-exit-code 1 --python-expr 'import bpy; assert len(bpy.data.objects["Cube"].data.vertices) == 8' -o //cube- -F PNG -f 1
-tar -cf /dev/vdc cube.blend cube-0001.png
-sync"""
-    boot(overlay(image, work, "8G" if profile == "blender" else "6G"), work,
-         config(script), extra=extra, timeout=1800 if profile == "blender" else 600)
-    if profile == "blender":
-        output_dir.mkdir(parents=True, exist_ok=True)
-        with tarfile.open(transfer) as archive:
-            for src, dst in [("cube.blend", "cube.blend"), ("cube-0001.png", "cube.png")]:
-                data = archive.extractfile(src).read()
-                if not data.startswith(b"BLENDER" if dst.endswith(".blend") else b"\x89PNG\r\n\x1a\n"):
-                    raise ValueError(f"Invalid {src}")
-                (output_dir / dst).write_bytes(data)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("image", type=Path)
-    parser.add_argument("--profile", choices=("ubuntu", "debian", "blender"), default="ubuntu")
-    parser.add_argument("--output-dir", type=Path, default=Path("dist/preview"))
-    args = parser.parse_args()
-    with tempfile.TemporaryDirectory() as tmp:
-        smoke(args.image.resolve(strict=True), Path(tmp), args.profile, args.output_dir)
+def check_guest(image, work, os_release, commands="", size="6G", **boot_options):
+    script = f'source /etc/os-release; test "$ID:$VERSION_CODENAME" = "{os_release}"; python3 -V\n{commands}'
+    boot(overlay(image, work, size), work, config(script), **boot_options)

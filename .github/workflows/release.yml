@@ -7,12 +7,21 @@ permissions:
   contents: read
 
 jobs:
+  catalog:
+    runs-on: ubuntu-24.04
+    outputs:
+      names: ${{ steps.discover.outputs.names }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: discover
+        run: echo "names=$(python3 scripts/catalog.py)" >> "$GITHUB_OUTPUT"
   build:
+    needs: catalog
     strategy:
       fail-fast: false
       matrix:
         arch: [amd64, arm64]
-        profile: [ubuntu, debian, blender]
+        vm: ${{ fromJSON(needs.catalog.outputs.names) }}
         include:
           - arch: amd64
             runner: ubuntu-24.04
@@ -20,12 +29,6 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
             packages: qemu-system-arm qemu-efi-aarch64
-          - profile: ubuntu
-            prefix: ubuntu-noble-minimal
-          - profile: debian
-            prefix: debian-trixie-generic
-          - profile: blender
-            prefix: ubuntu-noble-blender
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
@@ -33,28 +36,28 @@ jobs:
         with:
           persist-credentials: false
       - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends genisoimage qemu-utils ${{ matrix.packages }}
-      - run: python3 scripts/build.py --profile ${{ matrix.profile }} --arch ${{ matrix.arch }}
-      - run: python3 scripts/smoke.py --profile ${{ matrix.profile }} dist/${{ matrix.prefix }}-${{ matrix.arch }}.qcow2 --output-dir preview
-      - run: cd dist && sha256sum -c ${{ matrix.prefix }}-${{ matrix.arch }}.qcow2.sha256
-      - if: matrix.profile == 'blender' && matrix.arch == 'amd64'
+      - run: python3 scripts/build.py --vm ${{ matrix.vm }} --arch ${{ matrix.arch }}
+      - run: python3 scripts/test.py --vm ${{ matrix.vm }} --output-dir preview
+      - run: cd dist && sha256sum -c ${{ matrix.vm }}-${{ matrix.arch }}.qcow2.sha256
+      - if: matrix.arch == 'amd64' && hashFiles('preview/*') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: vm-blender-sample
+          name: vm-${{ matrix.vm }}-sample
           path: preview/
           if-no-files-found: error
           retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: vm-${{ matrix.profile }}-${{ matrix.arch }}
+          name: vm-${{ matrix.vm }}-${{ matrix.arch }}
           path: |
-            dist/${{ matrix.prefix }}-${{ matrix.arch }}.qcow2*
-            dist/${{ matrix.prefix }}-${{ matrix.arch }}.md
+            dist/${{ matrix.vm }}-${{ matrix.arch }}.qcow2*
+            dist/${{ matrix.vm }}-${{ matrix.arch }}.md
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
 
   publish:
-    needs: build
+    needs: [catalog, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -69,12 +72,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
+          VMS: ${{ needs.catalog.outputs.names }}
         working-directory: dist
         run: |
-          sha256sum -c {ubuntu-noble-minimal,debian-trixie-generic,ubuntu-noble-blender}-{amd64,arm64}.qcow2.sha256
-          for disk in *.qcow2; do test -s "${disk%.qcow2}.md"; done
+          for vm in $(jq -r '.[]' <<< "$VMS"); do
+            for arch in amd64 arm64; do
+              sha256sum -c "$vm-$arch.qcow2.sha256"
+              test -s "$vm-$arch.md"
+            done
+          done
           flags=()
           if [[ "$TAG" == *-* ]]; then flags+=(--prerelease --latest=false); fi
           gh release create --verify-tag --title "$TAG" \
-            --notes "Ubuntu minimal, Debian generic and Ubuntu Blender QCOW2 disks. The cube scene and PNG were generated inside the amd64 Blender VM." \
-            "${flags[@]}" -- "$TAG" *.qcow2 *.sha256 *.md cube.blend cube.png
+            --notes "Boot-tested QCOW2 disks with matching SHA-256 checksums and Markdown capability cards." \
+            "${flags[@]}" -- "$TAG" *
