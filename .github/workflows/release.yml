@@ -56,8 +56,28 @@ jobs:
           compression-level: 0
           retention-days: 1
 
+  firmware:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: brew install qemu
+      - name: Package architecture-specific QEMU resources
+        run: |
+          for arch in amd64 arm64; do
+            python3 scripts/firmware.py --share "$(brew --prefix qemu)/share/qemu" --arch "$arch"
+            unzip -t "dist/qemu-firmware-$arch.zip"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vm-firmware
+          path: dist/qemu-firmware-*
+          if-no-files-found: error
+          retention-days: 1
+
   publish:
-    needs: [catalog, build]
+    needs: [catalog, build, firmware]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -82,7 +102,10 @@ jobs:
             done
           done
           flags=()
+          for arch in amd64 arm64; do
+            sha256sum -c "qemu-firmware-$arch.zip.sha256"
+          done
           if [[ "$TAG" == *-* ]]; then flags+=(--prerelease --latest=false); fi
           gh release create --verify-tag --title "$TAG" \
-            --notes "Boot-tested QCOW2 disks with matching SHA-256 checksums and Markdown capability cards." \
+            --notes "Boot-tested QCOW2 disks, Markdown capability cards, and architecture-specific QEMU firmware archives with SHA-256 checksums." \
             "${flags[@]}" -- "$TAG" *

@@ -11,6 +11,16 @@ shasum -a 256 -c ubuntu-noble-minimal-amd64.qcow2.sha256
 
 ## Build and launch locally
 
+Tagged releases also package `qemu-firmware-{amd64,arm64}.zip` from the
+Homebrew QEMU distribution. These data-only archives contain SeaBIOS or EDK2
+and boot ROMs for the headless guests; they do not contain QEMU executables or
+Apple signatures. Backgrounder downloads the matching archive before signing
+its app. To reproduce the preparation locally:
+
+```sh
+python3 scripts/firmware.py --arch arm64 --share "$(brew --prefix qemu)/share/qemu"
+```
+
 From the repository root, with Python 3, curl, QEMU (`qemu-img` and the
 native system emulator), and either macOS `hdiutil` or Linux `genisoimage`:
 
