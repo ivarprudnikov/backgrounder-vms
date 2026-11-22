@@ -9,13 +9,27 @@ Download the matching `.sha256` file into the same directory and verify:
 shasum -a 256 -c ubuntu-noble-minimal-amd64.qcow2.sha256
 ```
 
+## QEMU firmware
+
+Choose the firmware archive for the **guest architecture**: `qemu-firmware-amd64.zip`
+contains SeaBIOS for x86 guests; `qemu-firmware-arm64.zip` contains EDK2 for
+ARM guests. Both include boot ROMs, not QEMU executables or VM disks.
+
+For example, download the ARM64 archive, its `.sha256` file, and the ARM64
+Ubuntu disk from the same release. With QEMU installed, boot the disk using
+the extracted firmware (`-snapshot` leaves the downloaded disk unchanged):
+
+```sh
+shasum -a 256 -c qemu-firmware-arm64.zip.sha256 &&
+  unzip -q qemu-firmware-arm64.zip -d firmware-arm64 &&
+  qemu-system-aarch64 -machine virt -cpu cortex-a72 -m 2048 -nographic \
+    -L firmware-arm64 -bios edk2-aarch64-code.fd -snapshot \
+    -drive file=ubuntu-noble-minimal-arm64.qcow2,format=qcow2,if=virtio
+```
+
 ## Build and launch locally
 
-Tagged releases also package `qemu-firmware-{amd64,arm64}.zip` from the
-Homebrew QEMU distribution. These data-only archives contain SeaBIOS or EDK2
-and boot ROMs for the headless guests; they do not contain QEMU executables or
-Apple signatures. Backgrounder downloads the matching archive before signing
-its app. To reproduce the preparation locally:
+To package the firmware locally from a Homebrew QEMU installation:
 
 ```sh
 python3 scripts/firmware.py --arch arm64 --share "$(brew --prefix qemu)/share/qemu"
@@ -40,13 +54,15 @@ and shuts down. Its overlay and seed are temporary.
 
 Each directory in [vms/](vms/) is one VM. Its name is the release filename
 prefix; for example [ubuntu-noble-blender/](vms/ubuntu-noble-blender/) produces
-`ubuntu-noble-blender-<arch>.qcow2`. To add a VM, create a directory containing:
+`ubuntu-noble-blender-<arch>.qcow2`. Firmware is packaged separately and
+shared by all VMs of the same architecture.
 
 | File | Responsibility |
 | --- | --- |
-| `card.md` | Describe tools, guest commands, expected outputs and limits. The builder adds the disk-specific metadata. |
-| `parameters.py` | For an upstream disk, declare `URL` (with `{arch}`), `ALGORITHM`, and `DIGESTS` keyed by architecture. For a derived disk, declare `BASE` (another directory name) and `bake(base, output, work)` to write the standalone QCOW2. |
-| `test.py` | Define `run(image, work, output_dir)` to validate the finished disk. Use `work` for temporary files and `output_dir` for publishable samples with unique filenames. Raise on failure. |
+| `vms/<name>/card.md` | Describe tools, guest commands, expected outputs and limits. The builder adds the disk-specific metadata. |
+| `vms/<name>/parameters.py` | For an upstream disk, declare `URL` (with `{arch}`), `ALGORITHM`, and `DIGESTS` keyed by architecture. For a derived disk, declare `BASE` (another directory name) and `bake(base, output, work)` to write the standalone QCOW2. |
+| `vms/<name>/test.py` | Define `run(image, work, output_dir)` to validate the finished disk. Use `work` for temporary files and `output_dir` for publishable samples with unique filenames. Raise on failure. |
+| [`scripts/firmware.py`](scripts/firmware.py) | Select the QEMU data files for each architecture and write `dist/qemu-firmware-<arch>.zip` and its `.sha256` checksum. |
 
 Keep VM-specific assets beside these files. The build resolves dependencies,
 and the local test runner and tag workflow discover the same catalog; no VM
