@@ -62,17 +62,33 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: brew install qemu
+      - name: Fetch the pinned Homebrew QEMU bottle
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_FROM_API: '1'
+          CORE_REV: 73bba0545c75c9331f2a43a49ffd0cbffc4fc664
+        run: |
+          core=$(brew --repository homebrew/core)
+          git init -q "$core"
+          git -C "$core" fetch --depth=1 https://github.com/Homebrew/homebrew-core.git "$CORE_REV"
+          git -C "$core" checkout --detach "$CORE_REV"
+          brew fetch --bottle-tag=arm64_tahoe qemu
+          bottle=$(brew --cache --bottle-tag=arm64_tahoe qemu)
+          mkdir "$RUNNER_TEMP/firmware-keg"
+          tar -xf "$bottle" -C "$RUNNER_TEMP/firmware-keg"
       - name: Package architecture-specific QEMU resources
         run: |
           for arch in amd64 arm64; do
-            python3 scripts/firmware.py --share "$(brew --prefix qemu)/share/qemu" --arch "$arch"
+            python3 scripts/firmware.py --share "$RUNNER_TEMP/firmware-keg/qemu/11.0.1/share/qemu" --arch "$arch"
             unzip -t "dist/qemu-firmware-$arch.zip"
           done
+          cp LICENSE dist/LICENSE
       - uses: actions/upload-artifact@v4
         with:
           name: vm-firmware
-          path: dist/qemu-firmware-*
+          path: |
+            dist/qemu-firmware-*
+            dist/LICENSE
           if-no-files-found: error
           retention-days: 1
 
@@ -102,10 +118,11 @@ jobs:
             done
           done
           flags=()
+          test -s LICENSE
           for arch in amd64 arm64; do
             sha256sum -c "qemu-firmware-$arch.zip.sha256"
           done
           if [[ "$TAG" == *-* ]]; then flags+=(--prerelease --latest=false); fi
           gh release create --verify-tag --title "$TAG" \
-            --notes "Boot-tested QCOW2 disks, Markdown capability cards, and architecture-specific QEMU firmware archives with SHA-256 checksums." \
+            --notes "Boot-tested QCOW2 disks, VM cards, and QEMU firmware. [Third-party notices and corresponding-source links](https://github.com/$GH_REPO/blob/$GITHUB_SHA/LICENSE). Each firmware ZIP also includes the notices." \
             "${flags[@]}" -- "$TAG" *

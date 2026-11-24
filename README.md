@@ -52,6 +52,11 @@ Choose the firmware archive for the **guest architecture**: `qemu-firmware-amd64
 contains SeaBIOS for x86 guests; `qemu-firmware-arm64.zip` contains EDK2 for
 ARM guests. Both include boot ROMs, not QEMU executables or VM disks.
 
+Each ZIP includes the release's [license and source index](LICENSE), the
+original Homebrew-distributed notices and the applicable component license
+texts. The same index is available beside the VM disks on the release page.
+The linked upstream projects host the firmware source, not this repository.
+
 `-L` tells QEMU where to find the extracted ROMs; `-bios` selects the firmware
 the guest CPU runs first. `-drive` attaches the separate VM disk; the firmware
 sees a virtio disk, not a QCOW2 file.
@@ -70,7 +75,8 @@ shasum -a 256 -c qemu-firmware-arm64.zip.sha256 &&
 
 ## Build and launch locally
 
-To package the firmware locally from a Homebrew QEMU installation:
+To package firmware locally, use the same Homebrew QEMU **11.0.1** distribution
+as the release; other versions need a fresh license and source review:
 
 ```sh
 python3 scripts/firmware.py --arch arm64 --share "$(brew --prefix qemu)/share/qemu"
@@ -115,3 +121,12 @@ Push a new tag on a commit containing [the workflow](.github/workflows/release.y
 for example `git tag v1.0.0 && git push origin v1.0.0`. Distributions
 are built and boot-tested on each architecture before publication. Hyphenated
 tags (e.g. `v1.0.0-test.1`) create public prereleases, not the latest release.
+
+The firmware job fetches the `arm64_tahoe` bottle using a fixed Homebrew/core
+commit and extracts its files without running QEMU. When changing the pin,
+review the source revisions **used to build the ROMs**, update [LICENSE](LICENSE)
+and [component notices](notices/), and verify that recipients can still obtain
+the exact source and build recipes for as long as the binaries are offered.
+An upstream homepage or this repository's scripts alone are not corresponding
+source. If equivalent source access cannot be maintained, provide it another
+way or withdraw the affected download.

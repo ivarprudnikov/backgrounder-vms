@@ -1,0 +1,47 @@
+Third-party notices and source locations
+=======================================
+
+This repository packages separate third-party works. This notice does not
+relicense them or grant a license to the project's own code. Packaging scripts
+and release history: https://github.com/ivarprudnikov/backgrounder-vms
+Use the LICENSE at the release's commit for its source index.
+
+Firmware: Homebrew QEMU 11.0.1
+-----------------------------
+The ZIPs redistribute unmodified binaries, not the QEMU emulator. The original
+Homebrew-distributed QEMU notices (LICENSE, COPYING, COPYING.LIB), source
+package metadata and formula are included under notices/qemu/ in each ZIP.
+QEMU's GPLv2 emulator license is not a blanket license for the firmware.
+Source distribution: https://download.qemu.org/qemu-11.0.1.tar.xz
+Formula and bottle checksums:
+https://github.com/Homebrew/homebrew-core/blob/73bba0545c75c9331f2a43a49ffd0cbffc4fc664/Formula/q/qemu.rb
+Firmware build recipes and configs:
+https://github.com/qemu/qemu/tree/v11.0.1/roms
+
+* amd64: bios.bin and bios-256k.bin are SeaBIOS, distributed under LGPLv3.
+  See notices/seabios/ for the accompanying GPLv3 and LGPLv3 texts.
+  Source: https://github.com/coreboot/seabios/tree/b52ca86e094d19b58e2304417787e96b940e39c6
+* amd64: kvmvapic.bin, linuxboot_dma.bin, multiboot_dma.bin and pvh.bin
+  are QEMU option ROMs. Their main sources specify GPLv2 or later; retain
+  the individual copyright and licensing notices in the corresponding sources.
+  Source: https://github.com/qemu/qemu/tree/v11.0.1/pc-bios/optionrom
+* Both ZIPs: efi-virtio.rom contains iPXE code, not EDK II code. The iPXE
+  COPYING file explains its per-target licensing; notices/ipxe/ contains
+  the upstream license files. See QEMU's efi-rom-virtio build rule for
+  the BIOS and EFI targets and CONFIG=qemu.
+  Source: https://github.com/ipxe/ipxe/tree/4bd064de239dab2426b31c9789a1f4d78087dc63
+* arm64: edk2-aarch64-code.fd is TianoCore EDK II. The accompanying
+  edk2-licenses.txt is reproduced in full and includes BSD-2-Clause-Patent
+  and third-party notices. Obtain the source recursively with its submodules:
+  https://github.com/tianocore/edk2/tree/b158dad150bf02879668f72ce306445250838201
+  Build revision: https://github.com/qemu/qemu/commit/065e2ecf79cdf7da94542caab2b847de57035d8c
+
+VM disks
+--------
+Debian and Ubuntu cloud images and their installed packages (including
+Blender where present) retain their own licenses and trademarks. Copyright
+notices are inside each guest under /usr/share/doc/<package>/copyright;
+shared license texts are under /usr/share/common-licenses/. The tagged
+vms/<profile>/parameters.py files identify the upstream disk or base and
+build steps. Match installed source package versions against the archives:
+https://snapshot.debian.org/ and https://snapshot.ubuntu.com/.
